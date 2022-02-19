@@ -3,25 +3,31 @@ package main
 import (
 	"encoding/binary"
 	"fmt"
-	"log"
 	"math"
+	"os"
 
 	"github.com/troian/hid"
 )
 
 // This is the only headset I care about atm
-const VENDOR_LOGITECH uint16 = 0x046d
-const ID_LOGITECH_PRO_X_1 uint16 = 0x0aba
-
-func getHeadset() (*hid.Device, error) {
-	devices := hid.Enumerate(VENDOR_LOGITECH, ID_LOGITECH_PRO_X_1)
-	return devices[0].Open()
-}
+const (
+	VENDOR_LOGITECH     uint16 = 0x046d
+	ID_LOGITECH_PRO_X_1 uint16 = 0x0aba
+)
 
 func main() {
+	ret, err := run()
+	if err != nil {
+		fmt.Fprint(os.Stderr, err)
+		os.Exit(1)
+	}
+	fmt.Println(ret)
+}
+
+func run() (string, error) {
 	handle, err := getHeadset()
 	if err != nil {
-		log.Fatalf("can't get handle: %v", err)
+		return "", fmt.Errorf("can't get handle: %w", err)
 	}
 	defer handle.Close()
 
@@ -33,15 +39,13 @@ func main() {
 	}
 	_, err = handle.Write(reqBatMsg)
 	if err != nil {
-		handle.Close()
-		log.Fatalf("failed hid write: %v", err)
+		return "", fmt.Errorf("failed hid write: %w", err)
 	}
 
 	res := make([]byte, 7)
 	_, err = handle.Read(res)
 	if err != nil {
-		handle.Close()
-		log.Fatalf("failed hid read: %v", err)
+		return "", fmt.Errorf("failed hid read: %w", err)
 	}
 
 	voltage := float64(binary.BigEndian.Uint16(res[4:6]))
@@ -66,5 +70,10 @@ func main() {
 		status = "unknown"
 	}
 
-	fmt.Printf("status: %s\nlevel: %d\n", status, level)
+	return fmt.Sprintf("status: %s\nlevel: %d", status, level), nil
+}
+
+func getHeadset() (*hid.Device, error) {
+	devices := hid.Enumerate(VENDOR_LOGITECH, ID_LOGITECH_PRO_X_1)
+	return devices[0].Open()
 }
